@@ -1,0 +1,21 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### Segredos ###
+.env
+
+### IDE ###
+.idea
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings
+.factorypath
+.sts4-cache
+build/

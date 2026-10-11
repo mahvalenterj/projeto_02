@@ -20,6 +20,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <jacoco.version>0.8.13</jacoco.version>
         <pitest.version>1.20.0</pitest.version>
+        <pitest.targetClasses>br.gov.saude.upa.*</pitest.targetClasses>
         <pitest-junit5.version>1.2.2</pitest-junit5.version>
         <spotless.version>2.44.5</spotless.version>
     </properties>
@@ -129,7 +130,7 @@
                 </dependencies>
                 <configuration>
                     <targetClasses>
-                        <param>br.gov.saude.upa.*</param>
+                        <param>${pitest.targetClasses}</param>
                     </targetClasses>
                     <mutationThreshold>85</mutationThreshold>
                 </configuration>

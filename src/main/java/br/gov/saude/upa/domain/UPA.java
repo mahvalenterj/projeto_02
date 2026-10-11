@@ -42,8 +42,14 @@ public class UPA {
     Objects.requireNonNull(idEquipamento, "idEquipamento");
     Equipamento equipamento = buscar(idEquipamento);
     var evento = new EquipamentoIndisponivelEvent(eventoId, idEquipamento, id, momentoFalha);
-    equipamento.marcarIndisponivel();
+    equipamento.transicionarPara(StatusEquipamento.INDISPONIVEL);
     eventos.add(evento);
+  }
+
+  /** Sem evento: o lote relê o status antes de cada envio (ADR 0002). */
+  public void marcarEquipamentoDisponivel(UUID idEquipamento) {
+    Objects.requireNonNull(idEquipamento, "idEquipamento");
+    buscar(idEquipamento).transicionarPara(StatusEquipamento.DISPONIVEL);
   }
 
   private Equipamento buscar(UUID idEquipamento) {

@@ -190,4 +190,100 @@ class UPATest {
     assertThat(upa.eventosRegistrados()).isEmpty();
     assertThat(consumidos).hasSize(1);
   }
+
+  private static final UUID ID_EVENTO_2 = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
+  private static final Instant MOMENTO_FALHA_2 = Instant.parse("2026-10-11T15:00:00Z");
+
+  private static UPA upaComTomografo(StatusEquipamento status) {
+    return new UPA(ID_UPA, List.of(tomografo(status)));
+  }
+
+  @Test
+  void deveMarcarEquipamentoComoDisponivelQuandoEstiverIndisponivel() {
+    UPA upa = upaComTomografo(StatusEquipamento.INDISPONIVEL);
+
+    upa.marcarEquipamentoDisponivel(ID_TOMOGRAFO);
+
+    assertThat(statusDe(upa, ID_TOMOGRAFO)).isEqualTo(StatusEquipamento.DISPONIVEL);
+  }
+
+  @Test
+  void naoDeveRegistrarEventoQuandoEquipamentoVoltarADisponivel() {
+    UPA upa = upaComTomografoDisponivel();
+    upa.marcarEquipamentoIndisponivel(ID_TOMOGRAFO, ID_EVENTO, MOMENTO_FALHA);
+
+    upa.marcarEquipamentoDisponivel(ID_TOMOGRAFO);
+
+    assertThat(upa.eventosRegistrados())
+        .containsExactly(
+            new EquipamentoIndisponivelEvent(ID_EVENTO, ID_TOMOGRAFO, ID_UPA, MOMENTO_FALHA));
+  }
+
+  @TestFactory
+  Stream<DynamicTest> deveLancarTransicaoInvalidaQuandoVoltarADisponivelSemEstarIndisponivel() {
+    return Stream.of(StatusEquipamento.DISPONIVEL, StatusEquipamento.EM_MANUTENCAO)
+        .map(
+            status ->
+                DynamicTest.dynamicTest(
+                    "a partir de " + status,
+                    () -> {
+                      UPA upa = upaComTomografo(status);
+
+                      assertThatThrownBy(() -> upa.marcarEquipamentoDisponivel(ID_TOMOGRAFO))
+                          .isInstanceOf(TransicaoDeStatusInvalidaException.class)
+                          .hasMessageContaining(ID_TOMOGRAFO.toString())
+                          .hasMessageContaining(status.name())
+                          .hasMessageContaining(StatusEquipamento.DISPONIVEL.name());
+
+                      assertThat(statusDe(upa, ID_TOMOGRAFO)).isEqualTo(status);
+                      assertThat(upa.eventosRegistrados()).isEmpty();
+                    }));
+  }
+
+  @Test
+  void deveLancarNaoEncontradoQuandoVoltarADisponivelEquipamentoDeOutraUpa() {
+    UPA upa = upaComTomografo(StatusEquipamento.INDISPONIVEL);
+
+    assertThatThrownBy(() -> upa.marcarEquipamentoDisponivel(ID_RAIO_X))
+        .isInstanceOf(EquipamentoNaoEncontradoException.class)
+        .hasMessageContaining(ID_RAIO_X.toString())
+        .hasMessageContaining(ID_UPA.toString());
+  }
+
+  @Test
+  void deveRegistrarNovoEventoComNovoEventoIdQuandoEquipamentoCairDeNovo() {
+    UPA upa = upaComTomografoDisponivel();
+    upa.marcarEquipamentoIndisponivel(ID_TOMOGRAFO, ID_EVENTO, MOMENTO_FALHA);
+    upa.marcarEquipamentoDisponivel(ID_TOMOGRAFO);
+
+    upa.marcarEquipamentoIndisponivel(ID_TOMOGRAFO, ID_EVENTO_2, MOMENTO_FALHA_2);
+
+    assertThat(statusDe(upa, ID_TOMOGRAFO)).isEqualTo(StatusEquipamento.INDISPONIVEL);
+    assertThat(upa.eventosRegistrados())
+        .containsExactly(
+            new EquipamentoIndisponivelEvent(ID_EVENTO, ID_TOMOGRAFO, ID_UPA, MOMENTO_FALHA),
+            new EquipamentoIndisponivelEvent(ID_EVENTO_2, ID_TOMOGRAFO, ID_UPA, MOMENTO_FALHA_2));
+  }
+
+  @Test
+  void deveAlterarSoOEquipamentoIndicadoAoVoltarADisponivel() {
+    UPA upa =
+        new UPA(
+            ID_UPA,
+            List.of(
+                tomografo(StatusEquipamento.INDISPONIVEL), raioX(StatusEquipamento.INDISPONIVEL)));
+
+    upa.marcarEquipamentoDisponivel(ID_TOMOGRAFO);
+
+    assertThat(statusDe(upa, ID_TOMOGRAFO)).isEqualTo(StatusEquipamento.DISPONIVEL);
+    assertThat(statusDe(upa, ID_RAIO_X)).isEqualTo(StatusEquipamento.INDISPONIVEL);
+  }
+
+  @Test
+  void deveRejeitarIdNuloAoVoltarADisponivel() {
+    UPA upa = upaComTomografo(StatusEquipamento.INDISPONIVEL);
+
+    assertThatThrownBy(() -> upa.marcarEquipamentoDisponivel(null))
+        .isInstanceOf(NullPointerException.class);
+  }
 }

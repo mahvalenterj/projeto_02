@@ -28,10 +28,10 @@ public class Equipamento {
     return status;
   }
 
-  void marcarIndisponivel() {
-    if (status != StatusEquipamento.DISPONIVEL) {
-      throw new TransicaoDeStatusInvalidaException(id, status, StatusEquipamento.INDISPONIVEL);
+  void transicionarPara(StatusEquipamento destino) {
+    if (!status.podeTransicionarPara(destino)) {
+      throw new TransicaoDeStatusInvalidaException(id, status, destino);
     }
-    status = StatusEquipamento.INDISPONIVEL;
+    status = destino;
   }
 }

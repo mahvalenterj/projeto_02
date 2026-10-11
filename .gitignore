@@ -1,21 +1,25 @@
-HELP.md
+# Build
 target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+HELP.md
+!.mvn/wrapper/maven-wrapper.jar
 
-### Segredos ###
+# Segredos
 .env
+.env.*
+!.env.example
 
-### IDE ###
-.idea
-*.iws
+# Privado: raciocínio de specs e ADRs (compartilhar só quando necessário)
+docs/specs/
+docs/adr/
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/skills/dominio-upa/
+
+# IDEs
+.idea/
 *.iml
-*.ipr
 .vscode/
 .classpath
 .project
-.settings
+.settings/
 .factorypath
-.sts4-cache
-build/

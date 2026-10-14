@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -16,8 +15,6 @@ import java.util.UUID;
  * velho (anos completos no dia do lote) e por fim o agendamento mais antigo.
  */
 public class SelecaoDeAvisos {
-
-  private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
 
   private final Clock clock;
 
@@ -31,7 +28,7 @@ public class SelecaoDeAvisos {
     Objects.requireNonNull(idEquipamento, "idEquipamento");
     Objects.requireNonNull(momentoFalha, "momentoFalha");
 
-    LocalDate diaDoLote = momentoFalha.atZone(FUSO).toLocalDate();
+    LocalDate diaDoLote = diaEmSaoPaulo(momentoFalha);
     Instant agora = clock.instant();
 
     Comparator<CandidatoAAviso> ordem =
@@ -48,7 +45,7 @@ public class SelecaoDeAvisos {
   }
 
   private static LocalDate diaEmSaoPaulo(Instant instante) {
-    return instante.atZone(FUSO).toLocalDate();
+    return instante.atZone(Fuso.SAO_PAULO).toLocalDate();
   }
 
   private static int idadeEmAnos(CandidatoAAviso candidato, LocalDate diaDoLote) {

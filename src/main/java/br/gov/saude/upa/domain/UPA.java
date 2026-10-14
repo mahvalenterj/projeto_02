@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -12,17 +14,41 @@ import java.util.UUID;
 public class UPA {
 
   private final UUID id;
+  private final String nome;
   private final List<Equipamento> equipamentos;
+  private final Map<TipoEquipamento, EnderecoAlternativo> enderecosAlternativos;
   private final List<EquipamentoIndisponivelEvent> eventos = new ArrayList<>();
 
-  public UPA(UUID id, List<Equipamento> equipamentos) {
+  public UPA(
+      UUID id,
+      String nome,
+      List<Equipamento> equipamentos,
+      Map<TipoEquipamento, EnderecoAlternativo> enderecosAlternativos) {
     this.id = Objects.requireNonNull(id, "id");
+    this.nome = exigirNomeValido(nome);
     this.equipamentos = List.copyOf(Objects.requireNonNull(equipamentos, "equipamentos"));
+    this.enderecosAlternativos =
+        Map.copyOf(Objects.requireNonNull(enderecosAlternativos, "enderecosAlternativos"));
     rejeitarIdsDuplicados(this.equipamentos);
   }
 
   public UUID id() {
     return id;
+  }
+
+  public String nome() {
+    return nome;
+  }
+
+  /** Endereço para onde enviar o paciente quando um equipamento deste tipo está indisponível. */
+  public Optional<EnderecoAlternativo> enderecoAlternativoPara(TipoEquipamento tipo) {
+    Objects.requireNonNull(tipo, "tipo");
+    return Optional.ofNullable(enderecosAlternativos.get(tipo));
+  }
+
+  public TipoEquipamento tipoDoEquipamento(UUID idEquipamento) {
+    Objects.requireNonNull(idEquipamento, "idEquipamento");
+    return buscar(idEquipamento).tipo();
   }
 
   public List<Equipamento> equipamentos() {
@@ -57,6 +83,14 @@ public class UPA {
         .filter(equipamento -> equipamento.id().equals(idEquipamento))
         .findFirst()
         .orElseThrow(() -> new EquipamentoNaoEncontradoException(idEquipamento, id));
+  }
+
+  private static String exigirNomeValido(String nome) {
+    Objects.requireNonNull(nome, "nome");
+    if (nome.isBlank()) {
+      throw new IllegalArgumentException("nome da UPA não pode ser vazio");
+    }
+    return nome;
   }
 
   private static void rejeitarIdsDuplicados(List<Equipamento> equipamentos) {

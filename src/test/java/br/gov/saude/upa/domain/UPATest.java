@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -28,8 +30,14 @@ class UPATest {
     return new Equipamento(ID_RAIO_X, TipoEquipamento.RAIO_X, status);
   }
 
+  private static final String NOME_UPA = "Madureira";
+
+  private static UPA novaUpa(List<Equipamento> equipamentos) {
+    return new UPA(ID_UPA, NOME_UPA, equipamentos, Map.of());
+  }
+
   private static UPA upaComTomografoDisponivel() {
-    return new UPA(ID_UPA, List.of(tomografo(StatusEquipamento.DISPONIVEL)));
+    return novaUpa(List.of(tomografo(StatusEquipamento.DISPONIVEL)));
   }
 
   private static StatusEquipamento statusDe(UPA upa, UUID idEquipamento) {
@@ -57,7 +65,7 @@ class UPATest {
                 DynamicTest.dynamicTest(
                     "a partir de " + status,
                     () -> {
-                      UPA upa = new UPA(ID_UPA, List.of(tomografo(status)));
+                      UPA upa = novaUpa(List.of(tomografo(status)));
 
                       assertThatThrownBy(
                               () ->
@@ -92,7 +100,7 @@ class UPATest {
 
   @Test
   void naoDeveAlterarEstadoNemRegistrarEventoQuandoTransicaoForInvalida() {
-    UPA upa = new UPA(ID_UPA, List.of(tomografo(StatusEquipamento.EM_MANUTENCAO)));
+    UPA upa = novaUpa(List.of(tomografo(StatusEquipamento.EM_MANUTENCAO)));
 
     assertThatThrownBy(
             () -> upa.marcarEquipamentoIndisponivel(ID_TOMOGRAFO, ID_EVENTO, MOMENTO_FALHA))
@@ -126,8 +134,7 @@ class UPATest {
   @Test
   void deveAlterarSoOEquipamentoIndicado() {
     UPA upa =
-        new UPA(
-            ID_UPA,
+        novaUpa(
             List.of(tomografo(StatusEquipamento.DISPONIVEL), raioX(StatusEquipamento.DISPONIVEL)));
 
     upa.marcarEquipamentoIndisponivel(ID_TOMOGRAFO, ID_EVENTO, MOMENTO_FALHA);
@@ -141,15 +148,34 @@ class UPATest {
     List<Equipamento> duplicados =
         List.of(tomografo(StatusEquipamento.DISPONIVEL), tomografo(StatusEquipamento.DISPONIVEL));
 
-    assertThatThrownBy(() -> new UPA(ID_UPA, duplicados))
+    assertThatThrownBy(() -> novaUpa(duplicados))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(ID_TOMOGRAFO.toString());
   }
 
   @Test
-  void deveRejeitarIdOuEquipamentosNulosNaConstrucao() {
-    assertThatThrownBy(() -> new UPA(null, List.of())).isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> new UPA(ID_UPA, null)).isInstanceOf(NullPointerException.class);
+  void deveRejeitarArgumentosNulosNaConstrucao() {
+    assertThatThrownBy(() -> new UPA(null, NOME_UPA, List.of(), Map.of()))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new UPA(ID_UPA, null, List.of(), Map.of()))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new UPA(ID_UPA, NOME_UPA, null, Map.of()))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new UPA(ID_UPA, NOME_UPA, List.of(), null))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void deveRejeitarNomeEmBranco() {
+    assertThatThrownBy(() -> new UPA(ID_UPA, "", List.of(), Map.of()))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new UPA(ID_UPA, "   ", List.of(), Map.of()))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void deveExporONomeDaUpa() {
+    assertThat(upaComTomografoDisponivel().nome()).isEqualTo(NOME_UPA);
   }
 
   @Test
@@ -161,7 +187,7 @@ class UPATest {
   void deveCopiarListaDeEquipamentosNaConstrucao() {
     List<Equipamento> original = new ArrayList<>();
     original.add(tomografo(StatusEquipamento.DISPONIVEL));
-    UPA upa = new UPA(ID_UPA, original);
+    UPA upa = novaUpa(original);
 
     original.add(raioX(StatusEquipamento.DISPONIVEL));
 
@@ -195,7 +221,7 @@ class UPATest {
   private static final Instant MOMENTO_FALHA_2 = Instant.parse("2026-10-11T15:00:00Z");
 
   private static UPA upaComTomografo(StatusEquipamento status) {
-    return new UPA(ID_UPA, List.of(tomografo(status)));
+    return novaUpa(List.of(tomografo(status)));
   }
 
   @Test
@@ -268,8 +294,7 @@ class UPATest {
   @Test
   void deveAlterarSoOEquipamentoIndicadoAoVoltarADisponivel() {
     UPA upa =
-        new UPA(
-            ID_UPA,
+        novaUpa(
             List.of(
                 tomografo(StatusEquipamento.INDISPONIVEL), raioX(StatusEquipamento.INDISPONIVEL)));
 
@@ -285,5 +310,58 @@ class UPATest {
 
     assertThatThrownBy(() -> upa.marcarEquipamentoDisponivel(null))
         .isInstanceOf(NullPointerException.class);
+  }
+
+  private static final EnderecoAlternativo ENDERECO_TOMOGRAFO =
+      new EnderecoAlternativo("UPA Cascadura, Rua Carolina Machado, 100");
+
+  @Test
+  void deveDevolverOEnderecoAlternativoDoTipoQuandoConfigurado() {
+    UPA upa =
+        new UPA(
+            ID_UPA,
+            NOME_UPA,
+            List.of(tomografo(StatusEquipamento.DISPONIVEL), raioX(StatusEquipamento.DISPONIVEL)),
+            Map.of(TipoEquipamento.TOMOGRAFO, ENDERECO_TOMOGRAFO));
+
+    assertThat(upa.enderecoAlternativoPara(TipoEquipamento.TOMOGRAFO)).contains(ENDERECO_TOMOGRAFO);
+    assertThat(upa.enderecoAlternativoPara(TipoEquipamento.RAIO_X)).isEmpty();
+  }
+
+  @Test
+  void deveCopiarOMapaDeEnderecosAlternativosNaConstrucao() {
+    Map<TipoEquipamento, EnderecoAlternativo> original = new HashMap<>();
+    original.put(TipoEquipamento.TOMOGRAFO, ENDERECO_TOMOGRAFO);
+    UPA upa = new UPA(ID_UPA, NOME_UPA, List.of(), original);
+
+    original.clear();
+
+    assertThat(upa.enderecoAlternativoPara(TipoEquipamento.TOMOGRAFO)).contains(ENDERECO_TOMOGRAFO);
+  }
+
+  @Test
+  void deveRejeitarTipoNuloAoBuscarEnderecoAlternativo() {
+    assertThatThrownBy(() -> upaComTomografoDisponivel().enderecoAlternativoPara(null))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void deveInformarOTipoDoEquipamento() {
+    UPA upa =
+        novaUpa(
+            List.of(tomografo(StatusEquipamento.DISPONIVEL), raioX(StatusEquipamento.DISPONIVEL)));
+
+    assertThat(upa.tipoDoEquipamento(ID_TOMOGRAFO)).isEqualTo(TipoEquipamento.TOMOGRAFO);
+    assertThat(upa.tipoDoEquipamento(ID_RAIO_X)).isEqualTo(TipoEquipamento.RAIO_X);
+  }
+
+  @Test
+  void deveLancarNaoEncontradoAoInformarTipoDeEquipamentoDeOutraUpa() {
+    UPA upa = upaComTomografoDisponivel();
+
+    assertThatThrownBy(() -> upa.tipoDoEquipamento(ID_RAIO_X))
+        .isInstanceOf(EquipamentoNaoEncontradoException.class)
+        .hasMessageContaining(ID_RAIO_X.toString());
+    assertThatThrownBy(() -> upa.tipoDoEquipamento(null)).isInstanceOf(NullPointerException.class);
   }
 }

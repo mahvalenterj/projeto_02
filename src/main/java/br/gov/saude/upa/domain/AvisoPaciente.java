@@ -20,17 +20,58 @@ public class AvisoPaciente {
   private Instant atualizadoEm;
   private MotivoCancelamento motivoCancelamento;
 
-  private AvisoPaciente(UUID eventoId, UUID agendamentoId, Instant agora) {
+  private AvisoPaciente(
+      UUID eventoId,
+      UUID agendamentoId,
+      StatusAviso status,
+      Instant reservadoEm,
+      Instant atualizadoEm,
+      MotivoCancelamento motivoCancelamento) {
     this.eventoId = Objects.requireNonNull(eventoId, "eventoId");
     this.agendamentoId = Objects.requireNonNull(agendamentoId, "agendamentoId");
-    Objects.requireNonNull(agora, "agora");
-    this.status = StatusAviso.PENDENTE;
-    this.reservadoEm = agora;
-    this.atualizadoEm = agora;
+    this.status = Objects.requireNonNull(status, "status");
+    this.reservadoEm = Objects.requireNonNull(reservadoEm, "reservadoEm");
+    this.atualizadoEm = Objects.requireNonNull(atualizadoEm, "atualizadoEm");
+    this.motivoCancelamento = motivoCancelamento;
   }
 
   public static AvisoPaciente reservar(UUID eventoId, UUID agendamentoId, Instant agora) {
-    return new AvisoPaciente(eventoId, agendamentoId, agora);
+    Objects.requireNonNull(agora, "agora");
+    return new AvisoPaciente(eventoId, agendamentoId, StatusAviso.PENDENTE, agora, agora, null);
+  }
+
+  /**
+   * Reconstitui um aviso a partir do que está gravado. Rejeita estados que o domínio nunca produz:
+   * {@code atualizadoEm} antes de {@code reservadoEm}, {@code CANCELADO} sem motivo ou motivo em
+   * outro status.
+   */
+  public static AvisoPaciente reconstituir(
+      UUID eventoId,
+      UUID agendamentoId,
+      StatusAviso status,
+      Instant reservadoEm,
+      Instant atualizadoEm,
+      MotivoCancelamento motivoCancelamento) {
+    AvisoPaciente aviso =
+        new AvisoPaciente(
+            eventoId, agendamentoId, status, reservadoEm, atualizadoEm, motivoCancelamento);
+    if (atualizadoEm.isBefore(reservadoEm)) {
+      throw new IllegalArgumentException(
+          "Aviso " + aviso.descricaoDosIds() + ": atualizadoEm anterior a reservadoEm");
+    }
+    if ((status == StatusAviso.CANCELADO) != (motivoCancelamento != null)) {
+      throw new IllegalArgumentException(
+          "Aviso "
+              + aviso.descricaoDosIds()
+              + ": só o status CANCELADO tem motivo de cancelamento (status "
+              + status
+              + ")");
+    }
+    return aviso;
+  }
+
+  private String descricaoDosIds() {
+    return "(evento " + eventoId + ", agendamento " + agendamentoId + ")";
   }
 
   public UUID eventoId() {

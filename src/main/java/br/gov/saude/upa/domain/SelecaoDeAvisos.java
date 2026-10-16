@@ -28,7 +28,7 @@ public class SelecaoDeAvisos {
     Objects.requireNonNull(idEquipamento, "idEquipamento");
     Objects.requireNonNull(momentoFalha, "momentoFalha");
 
-    LocalDate diaDoLote = diaEmSaoPaulo(momentoFalha);
+    LocalDate diaDoLote = diaDoLote(momentoFalha);
     Instant agora = clock.instant();
 
     Comparator<CandidatoAAviso> ordem =
@@ -42,6 +42,12 @@ public class SelecaoDeAvisos {
         .filter(c -> c.agendamento().inicioExame().isAfter(agora))
         .sorted(ordem)
         .toList();
+  }
+
+  /** Dia (America/Sao_Paulo) do lote: o mesmo que {@link #selecionar} usa para filtrar. */
+  public LocalDate diaDoLote(Instant momentoFalha) {
+    Objects.requireNonNull(momentoFalha, "momentoFalha");
+    return diaEmSaoPaulo(momentoFalha);
   }
 
   private static LocalDate diaEmSaoPaulo(Instant instante) {

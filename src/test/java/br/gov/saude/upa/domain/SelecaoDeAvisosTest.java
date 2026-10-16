@@ -250,4 +250,21 @@ class SelecaoDeAvisosTest {
     assertThatThrownBy(() -> selecao().selecionar(candidatos, ID_TOMOGRAFO, null))
         .isInstanceOf(NullPointerException.class);
   }
+
+  @Test
+  void deveExporODiaDoLoteEmSaoPaulo() {
+    // 02:30 UTC do dia 12 ainda é 23:30 do dia 11 em São Paulo.
+    Instant madrugadaUtc = Instant.parse("2026-10-12T02:30:00Z");
+
+    assertThat(selecao().diaDoLote(madrugadaUtc)).isEqualTo(LocalDate.of(2026, 10, 11));
+    assertThat(selecao().diaDoLote(Instant.parse("2026-10-12T03:00:00Z")))
+        .isEqualTo(LocalDate.of(2026, 10, 12));
+  }
+
+  @Test
+  void deveRejeitarMomentoNuloAoExporODiaDoLote() {
+    SelecaoDeAvisos selecao = selecao();
+
+    assertThatThrownBy(() -> selecao.diaDoLote(null)).isInstanceOf(NullPointerException.class);
+  }
 }

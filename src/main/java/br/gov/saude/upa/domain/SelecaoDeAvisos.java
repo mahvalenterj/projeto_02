@@ -29,7 +29,6 @@ public class SelecaoDeAvisos {
     Objects.requireNonNull(momentoFalha, "momentoFalha");
 
     LocalDate diaDoLote = diaDoLote(momentoFalha);
-    Instant agora = clock.instant();
 
     Comparator<CandidatoAAviso> ordem =
         Comparator.comparing((CandidatoAAviso c) -> c.agendamento().inicioExame())
@@ -39,9 +38,15 @@ public class SelecaoDeAvisos {
     return candidatos.stream()
         .filter(c -> c.agendamento().idEquipamento().equals(idEquipamento))
         .filter(c -> diaEmSaoPaulo(c.agendamento().inicioExame()).equals(diaDoLote))
-        .filter(c -> c.agendamento().inicioExame().isAfter(agora))
+        .filter(c -> exameAindaNaoComecou(c.agendamento().inicioExame()))
         .sorted(ordem)
         .toList();
+  }
+
+  /** O exame só pode ser avisado se começa estritamente depois de agora. */
+  public boolean exameAindaNaoComecou(Instant inicioExame) {
+    Objects.requireNonNull(inicioExame, "inicioExame");
+    return inicioExame.isAfter(clock.instant());
   }
 
   /** Dia (America/Sao_Paulo) do lote: o mesmo que {@link #selecionar} usa para filtrar. */

@@ -267,4 +267,27 @@ class SelecaoDeAvisosTest {
 
     assertThatThrownBy(() -> selecao.diaDoLote(null)).isInstanceOf(NullPointerException.class);
   }
+
+  @Test
+  void deveConsiderarQueOExameAindaNaoComecouSoQuandoEstritamenteDepoisDeAgora() {
+    SelecaoDeAvisos selecao = selecao();
+
+    assertThat(selecao.exameAindaNaoComecou(AGORA.plusMillis(1))).isTrue();
+    assertThat(selecao.exameAindaNaoComecou(AGORA)).isFalse();
+    assertThat(selecao.exameAindaNaoComecou(AGORA.minusMillis(1))).isFalse();
+  }
+
+  @Test
+  void deveRejeitarInicioNuloAoVerificarSeOExameJaComecou() {
+    SelecaoDeAvisos selecao = selecao();
+
+    assertThatThrownBy(() -> selecao.exameAindaNaoComecou(null))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void deveTerODadoInconsistenteComoMotivoDeRevisaoManual() {
+    assertThat(MotivoRevisaoManual.valueOf("DADO_INCONSISTENTE"))
+        .isNotIn(MotivoRevisaoManual.SEM_CONTATO, MotivoRevisaoManual.CANAIS_ESGOTADOS);
+  }
 }

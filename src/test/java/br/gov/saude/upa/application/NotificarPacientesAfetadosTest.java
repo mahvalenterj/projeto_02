@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -181,12 +182,24 @@ class NotificarPacientesAfetadosTest {
 
   private void dadoCandidatos(CandidatoAAviso... candidatos) {
     when(agendamentos.buscarDoEquipamentoNoDia(ID_TOMOGRAFO, LocalDate.of(2026, 10, 11)))
-        .thenReturn(List.of(candidatos));
+        .thenReturn(new AgendamentosDoDia(List.of(candidatos), List.of()));
     for (CandidatoAAviso c : candidatos) {
       int numero = (int) c.agendamento().id().getLeastSignificantBits();
       contatosPorPaciente.put(
           c.agendamento().idPaciente(), new ContatoDoPaciente(telefone(numero), emailDe(numero)));
     }
+  }
+
+  /** Candidatos normais mais agendamentos que o adapter não conseguiu montar. */
+  private void dadoCandidatosEDescartados(
+      List<CandidatoAAviso> candidatos, AgendamentoDescartado... descartados) {
+    dadoCandidatos(candidatos.toArray(new CandidatoAAviso[0]));
+    when(agendamentos.buscarDoEquipamentoNoDia(ID_TOMOGRAFO, LocalDate.of(2026, 10, 11)))
+        .thenReturn(new AgendamentosDoDia(candidatos, List.of(descartados)));
+  }
+
+  private static AgendamentoDescartado descartado(int numero, Instant inicio) {
+    return new AgendamentoDescartado(id(numero), inicio);
   }
 
   private void dadoContato(int numero, String telefone, String email) {
@@ -288,6 +301,108 @@ class NotificarPacientesAfetadosTest {
 
     assertThat(resumo.selecionados()).isEqualTo(1);
     verify(sms, never()).enviar(eq(telefone(2)), any());
+  }
+
+  // ---------- dado inconsistente (paciente inexistente ou tipo de exame desconhecido) ----------
+
+  private static final Instant EXAME_FUTURO = Instant.parse("2026-10-11T19:00:00Z");
+
+  @Test
+  void deveEncaminharDescartadoFuturoParaRevisaoManualComDadoInconsistenteEAlertar() {
+    dadoCandidatosEDescartados(List.of(candidato(1)), descartado(50, EXAME_FUTURO));
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 1, 0, 0, 0));
+    verify(revisoes)
+        .registrar(
+            new ItemDeRevisaoManual(EVENTO, id(50), MotivoRevisaoManual.DADO_INCONSISTENTE, AGORA));
+    verify(alertas).dadoInconsistente(EVENTO, id(50));
+    verify(avisos, never()).reservar(argThat(a -> a.agendamentoId().equals(id(50))));
+  }
+
+  @Test
+  void deveIgnorarDescartadoCujoExameJaComecouOuComecaAgora() {
+    dadoCandidatosEDescartados(
+        List.of(candidato(1)),
+        descartado(50, AGORA.minusSeconds(1)),
+        descartado(51, AGORA),
+        descartado(52, AGORA.plusMillis(1)));
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 1, 0, 0, 0));
+    verify(alertas, never()).dadoInconsistente(EVENTO, id(50));
+    verify(alertas, never()).dadoInconsistente(EVENTO, id(51));
+    verify(alertas).dadoInconsistente(EVENTO, id(52));
+  }
+
+  @Test
+  void deveContarComoPuladoODescartadoQueJaEstaEmRevisaoManual() {
+    dadoCandidatosEDescartados(List.of(candidato(1)), descartado(50, EXAME_FUTURO));
+    when(revisoes.agendamentosEmRevisao(EVENTO)).thenReturn(Set.of(id(50)));
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 0, 0, 1, 0));
+    verify(revisoes, never()).registrar(argThat(i -> i.agendamentoId().equals(id(50))));
+    verify(alertas, never()).dadoInconsistente(any(), any());
+  }
+
+  @Test
+  void deveContarComoPuladoODescartadoQuandoOutraExecucaoRegistrouAntes() {
+    dadoCandidatosEDescartados(List.of(candidato(1)), descartado(50, EXAME_FUTURO));
+    when(revisoes.registrar(argThat(i -> i.agendamentoId().equals(id(50))))).thenReturn(false);
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 0, 0, 1, 0));
+    verify(alertas, never()).dadoInconsistente(any(), any());
+  }
+
+  @Test
+  void deveProcessarSoDescartadosQuandoNaoHaCandidatosNaFila() {
+    dadoCandidatosEDescartados(
+        List.of(), descartado(50, EXAME_FUTURO), descartado(51, EXAME_FUTURO.plusSeconds(3600)));
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 0, 0, 2, 0, 0, 0));
+    verifyNoInteractions(sms, email, contatos);
+    verify(alertas).dadoInconsistente(EVENTO, id(50));
+    verify(alertas).dadoInconsistente(EVENTO, id(51));
+  }
+
+  @Test
+  void deveSeguirOLoteQuandoOAlertaDeDadoInconsistenteLancar() {
+    dadoCandidatosEDescartados(List.of(candidato(1)), descartado(50, EXAME_FUTURO));
+    doThrow(new IllegalStateException(SEGREDO)).when(alertas).dadoInconsistente(any(), any());
+    capturarLogs();
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 1, 0, 0, 0));
+    assertThat(logCapturado.list).noneMatch(e -> e.getFormattedMessage().contains(SEGREDO));
+    assertThat(logCapturado.list)
+        .anyMatch(
+            e ->
+                e.getFormattedMessage().contains(id(50).toString())
+                    && e.getFormattedMessage().contains(IllegalStateException.class.getName()));
+  }
+
+  @Test
+  void deveContarFalhaInesperadaQuandoGravarARevisaoDoDescartadoLancar() {
+    dadoCandidatosEDescartados(List.of(candidato(1)), descartado(50, EXAME_FUTURO));
+    when(revisoes.registrar(argThat(i -> i.agendamentoId().equals(id(50)))))
+        .thenThrow(new IllegalStateException(SEGREDO));
+    capturarLogs();
+
+    ResumoDoLote resumo = executar();
+
+    assertThat(resumo).isEqualTo(new ResumoDoLote(2, 1, 0, 0, 0, 0, 1));
+    verify(alertas).falhaInesperada(EVENTO, id(50), IllegalStateException.class.getName());
+    verify(alertas, never()).dadoInconsistente(any(), any());
+    assertThat(logCapturado.list).noneMatch(e -> e.getFormattedMessage().contains(SEGREDO));
   }
 
   // ---------- CA5 ----------

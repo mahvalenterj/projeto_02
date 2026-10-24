@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.gov.saude.upa.PostgresIntegrationTest;
 import br.gov.saude.upa.application.AgendamentoRepository;
+import br.gov.saude.upa.application.AgendamentosDoDia;
 import br.gov.saude.upa.application.AlertasOperacionais;
 import br.gov.saude.upa.application.AvisoPacienteRepository;
 import br.gov.saude.upa.application.ConsultaDeEquipamento;
@@ -150,8 +151,8 @@ class NotificarPacientesAfetadosIntegracaoTest extends PostgresIntegrationTest {
     volatile List<CandidatoAAviso> candidatos = List.of();
 
     @Override
-    public List<CandidatoAAviso> buscarDoEquipamentoNoDia(UUID idEquipamento, LocalDate dia) {
-      return candidatos;
+    public AgendamentosDoDia buscarDoEquipamentoNoDia(UUID idEquipamento, LocalDate dia) {
+      return new AgendamentosDoDia(candidatos, List.of());
     }
   }
 
@@ -199,6 +200,11 @@ class NotificarPacientesAfetadosIntegracaoTest extends PostgresIntegrationTest {
     @Override
     public void falhaInesperada(UUID eventoId, UUID agendamentoId, String tipoDoErro) {
       alertas.add("falha:" + agendamentoId);
+    }
+
+    @Override
+    public void dadoInconsistente(UUID eventoId, UUID agendamentoId) {
+      alertas.add("dadoInconsistente:" + agendamentoId);
     }
   }
 

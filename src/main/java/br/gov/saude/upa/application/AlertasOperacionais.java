@@ -15,4 +15,10 @@ public interface AlertasOperacionais {
    * nunca a mensagem dela.
    */
   void falhaInesperada(UUID eventoId, UUID agendamentoId, String tipoDoErro);
+
+  /**
+   * Agendamento sem paciente cadastrado ou de tipo de exame desconhecido, encaminhado à revisão
+   * manual.
+   */
+  void dadoInconsistente(UUID eventoId, UUID agendamentoId);
 }

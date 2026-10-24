@@ -120,11 +120,14 @@ public class NotificarPacientesAfetados {
             .orElseThrow(() -> new UpaNaoEncontradaException(evento.idUpa()));
 
     LocalDate dia = selecao.diaDoLote(evento.momentoFalha());
-    List<CandidatoAAviso> candidatos =
-        agendamentos.buscarDoEquipamentoNoDia(evento.idEquipamento(), dia);
+    AgendamentosDoDia doDia = agendamentos.buscarDoEquipamentoNoDia(evento.idEquipamento(), dia);
     List<CandidatoAAviso> fila =
-        selecao.selecionar(candidatos, evento.idEquipamento(), evento.momentoFalha());
-    if (fila.isEmpty()) {
+        selecao.selecionar(doDia.candidatos(), evento.idEquipamento(), evento.momentoFalha());
+    List<AgendamentoDescartado> descartados =
+        doDia.descartados().stream()
+            .filter(d -> selecao.exameAindaNaoComecou(d.inicioExame()))
+            .toList();
+    if (fila.isEmpty() && descartados.isEmpty()) {
       LOG.info("Lote do evento {} sem agendamentos a avisar", evento.eventoId());
       return new ResumoDoLote(0, 0, 0, 0, 0, 0, 0);
     }
@@ -135,14 +138,20 @@ public class NotificarPacientesAfetados {
             upa,
             avisos.buscarPorEvento(evento.eventoId()),
             revisoes.agendamentosEmRevisao(evento.eventoId()),
-            contatos.buscarPorIds(
-                fila.stream()
-                    .map(c -> c.agendamento().idPaciente())
-                    .collect(Collectors.toUnmodifiableSet())));
+            fila.isEmpty()
+                ? Map.of()
+                : contatos.buscarPorIds(
+                    fila.stream()
+                        .map(c -> c.agendamento().idPaciente())
+                        .collect(Collectors.toUnmodifiableSet())));
 
-    List<Desfecho> desfechos = despachar(lote, fila);
+    // Os pacientes da fila vêm primeiro; os descartados só gravam a revisão manual.
+    List<Desfecho> desfechos = new ArrayList<>(despachar(lote, fila));
+    for (AgendamentoDescartado descartado : descartados) {
+      desfechos.add(processarDescartado(lote, descartado));
+    }
 
-    ResumoDoLote resumo = resumir(fila.size(), desfechos);
+    ResumoDoLote resumo = resumir(fila.size() + descartados.size(), desfechos);
     LOG.info(
         "Lote do evento {} concluído: selecionados={} confirmados={} cancelados={}"
             + " emRevisaoManual={} indeterminados={} pulados={} falhasInesperadas={}",
@@ -221,6 +230,42 @@ public class NotificarPacientesAfetados {
       String tipoDoErro = e.getClass().getName();
       LOG.error(
           "Falha inesperada no aviso: eventoId={} agendamentoId={} tipo={}",
+          eventoId,
+          agendamentoId,
+          tipoDoErro);
+      alertarFalha(eventoId, agendamentoId, tipoDoErro);
+      return Desfecho.FALHA_INESPERADA;
+    }
+  }
+
+  /**
+   * Agendamento sem dado confiável (paciente inexistente, tipo desconhecido): nada a enviar, vai
+   * para a revisão manual com alerta, uma vez por evento.
+   */
+  private Desfecho processarDescartado(Lote lote, AgendamentoDescartado descartado) {
+    UUID eventoId = lote.evento().eventoId();
+    UUID agendamentoId = descartado.idAgendamento();
+    try {
+      if (lote.emRevisao().contains(agendamentoId)) {
+        return Desfecho.PULADO;
+      }
+      boolean registrou =
+          revisoes.registrar(
+              new ItemDeRevisaoManual(
+                  eventoId,
+                  agendamentoId,
+                  MotivoRevisaoManual.DADO_INCONSISTENTE,
+                  clock.instant()));
+      if (!registrou) {
+        return Desfecho.PULADO;
+      }
+      LOG.warn("Dado inconsistente: eventoId={} agendamentoId={}", eventoId, agendamentoId);
+      alertarDadoInconsistente(eventoId, agendamentoId);
+      return Desfecho.REVISAO_MANUAL;
+    } catch (RuntimeException e) {
+      String tipoDoErro = e.getClass().getName();
+      LOG.error(
+          "Falha inesperada no descartado: eventoId={} agendamentoId={} tipo={}",
           eventoId,
           agendamentoId,
           tipoDoErro);
@@ -379,6 +424,18 @@ public class NotificarPacientesAfetados {
     } catch (RuntimeException e) {
       LOG.error(
           "Alerta de indeterminado não enviado: eventoId={} agendamentoId={} tipo={}",
+          eventoId,
+          agendamentoId,
+          e.getClass().getName());
+    }
+  }
+
+  private void alertarDadoInconsistente(UUID eventoId, UUID agendamentoId) {
+    try {
+      alertas.dadoInconsistente(eventoId, agendamentoId);
+    } catch (RuntimeException e) {
+      LOG.error(
+          "Alerta de dado inconsistente não enviado: eventoId={} agendamentoId={} tipo={}",
           eventoId,
           agendamentoId,
           e.getClass().getName());

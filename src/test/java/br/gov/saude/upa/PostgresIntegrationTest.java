@@ -2,6 +2,7 @@ package br.gov.saude.upa;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * Base dos testes de integração: um único contexto Spring e um único container Postgres,
@@ -9,4 +10,11 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootTest
 @Import(PostgresTestConfiguration.class)
+@TestPropertySource(
+    properties = {
+      "upa.canais.sms.base-url=http://localhost:1",
+      "upa.canais.sms.token=token-falso-de-teste",
+      "upa.canais.email.base-url=http://localhost:1",
+      "upa.canais.email.token=token-falso-de-teste"
+    })
 public abstract class PostgresIntegrationTest {}

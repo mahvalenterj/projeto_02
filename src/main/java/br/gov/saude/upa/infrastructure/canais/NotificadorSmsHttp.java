@@ -1,5 +1,6 @@
 package br.gov.saude.upa.infrastructure.canais;
 
+import br.gov.saude.upa.application.ChaveDeIdempotencia;
 import br.gov.saude.upa.application.NotificadorSms;
 import br.gov.saude.upa.application.ResultadoDoEnvio;
 import br.gov.saude.upa.domain.MensagemDeAviso;
@@ -20,9 +21,10 @@ class NotificadorSmsHttp implements NotificadorSms {
   }
 
   @Override
-  public ResultadoDoEnvio enviar(String destino, MensagemDeAviso mensagem) {
-    ClienteDeCanal.validar(destino, mensagem);
-    return cliente.enviar(new PedidoDeSms(destino, mensagem.texto()));
+  public ResultadoDoEnvio enviar(
+      String destino, MensagemDeAviso mensagem, ChaveDeIdempotencia chave) {
+    ClienteDeCanal.validar(destino, mensagem, chave);
+    return cliente.enviar(new PedidoDeSms(destino, mensagem.texto()), chave);
   }
 
   /** O {@code toString} não mostra o telefone nem o texto. */

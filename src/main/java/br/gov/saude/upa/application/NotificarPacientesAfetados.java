@@ -346,17 +346,20 @@ public class NotificarPacientesAfetados {
         lote.contatos()
             .getOrDefault(candidato.agendamento().idPaciente(), new ContatoDoPaciente(null, null));
     MensagemDeAviso mensagem = MensagemDeAviso.compor(lote.upa(), candidato.agendamento());
+    // A mesma chave vale para SMS, e-mail e reassunção: o provedor reconhece a repetição do aviso.
+    ChaveDeIdempotencia chave =
+        new ChaveDeIdempotencia(lote.evento().eventoId(), candidato.agendamento().id());
 
     if (contato.possuiTelefone()) {
       Optional<ResultadoNotificacao> porSms =
-          desfechoDoCanal(sms.enviar(contato.telefone(), mensagem));
+          desfechoDoCanal(sms.enviar(contato.telefone(), mensagem, chave));
       if (porSms.isPresent()) {
         return porSms.get();
       }
     }
     if (contato.possuiEmail()) {
       Optional<ResultadoNotificacao> porEmail =
-          desfechoDoCanal(email.enviar(contato.email(), mensagem));
+          desfechoDoCanal(email.enviar(contato.email(), mensagem, chave));
       if (porEmail.isPresent()) {
         return porEmail.get();
       }

@@ -127,8 +127,12 @@ class NotificarPacientesAfetadosTest {
     lenient().when(revisoes.agendamentosEmRevisao(any())).thenReturn(Set.of());
     lenient().when(revisoes.registrar(any())).thenReturn(true);
     lenient().when(consulta.statusAtual(any())).thenReturn(StatusEquipamento.INDISPONIVEL);
-    lenient().when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Confirmado());
-    lenient().when(email.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Confirmado());
+    lenient()
+        .when(sms.enviar(anyString(), any(), any()))
+        .thenReturn(new ResultadoDoEnvio.Confirmado());
+    lenient()
+        .when(email.enviar(anyString(), any(), any()))
+        .thenReturn(new ResultadoDoEnvio.Confirmado());
     lenient().when(contatos.buscarPorIds(any())).thenReturn(contatosPorPaciente);
   }
 
@@ -271,8 +275,8 @@ class NotificarPacientesAfetadosTest {
     assertThat(reserva.getValue().eventoId()).isEqualTo(EVENTO);
     assertThat(reserva.getValue().agendamentoId()).isEqualTo(id(1));
     assertThat(reserva.getValue().reservadoEm()).isEqualTo(AGORA);
-    verify(sms).enviar(telefone(1), mensagemEsperada(1));
-    verify(email, never()).enviar(anyString(), any());
+    verify(sms).enviar(eq(telefone(1)), eq(mensagemEsperada(1)), any());
+    verify(email, never()).enviar(anyString(), any(), any());
     AvisoPaciente desfecho = desfechosGravados(1).get(0);
     assertThat(desfecho.agendamentoId()).isEqualTo(id(1));
     assertThat(desfecho.status()).isEqualTo(StatusAviso.CONFIRMADO);
@@ -300,7 +304,7 @@ class NotificarPacientesAfetadosTest {
     ResumoDoLote resumo = executar();
 
     assertThat(resumo.selecionados()).isEqualTo(1);
-    verify(sms, never()).enviar(eq(telefone(2)), any());
+    verify(sms, never()).enviar(eq(telefone(2)), any(), any());
   }
 
   // ---------- dado inconsistente (paciente inexistente ou tipo de exame desconhecido) ----------
@@ -410,13 +414,13 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveCairNoEmailQuandoSmsEsgotarTentativas() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
 
     ResumoDoLote resumo = executar();
 
     assertThat(resumo).isEqualTo(new ResumoDoLote(1, 1, 0, 0, 0, 0, 0));
-    verify(sms, times(1)).enviar(eq(telefone(1)), any());
-    verify(email).enviar(emailDe(1), mensagemEsperada(1));
+    verify(sms, times(1)).enviar(eq(telefone(1)), any(), any());
+    verify(email).enviar(eq(emailDe(1)), eq(mensagemEsperada(1)), any());
     assertThat(desfechosGravados(1).get(0).status()).isEqualTo(StatusAviso.CONFIRMADO);
     verify(revisoes, never()).registrar(any());
   }
@@ -424,8 +428,8 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveIrParaRevisaoManualQuandoSmsEEmailEsgotarem() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
-    when(email.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(email.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
 
     ResumoDoLote resumo = executar();
 
@@ -441,12 +445,12 @@ class NotificarPacientesAfetadosTest {
   void deveIrParaRevisaoManualQuandoSmsEsgotarEPacienteNaoTemEmail() {
     dadoCandidatos(candidato(1));
     dadoContato(1, telefone(1), null);
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
 
     ResumoDoLote resumo = executar();
 
     assertThat(resumo.emRevisaoManual()).isEqualTo(1);
-    verify(email, never()).enviar(anyString(), any());
+    verify(email, never()).enviar(anyString(), any(), any());
     verify(revisoes)
         .registrar(
             new ItemDeRevisaoManual(EVENTO, id(1), MotivoRevisaoManual.CANAIS_ESGOTADOS, AGORA));
@@ -456,12 +460,12 @@ class NotificarPacientesAfetadosTest {
   void deveIrParaRevisaoManualQuandoSoTemEmailEEleEsgotar() {
     dadoCandidatos(candidato(1));
     dadoContato(1, null, emailDe(1));
-    when(email.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(email.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
 
     ResumoDoLote resumo = executar();
 
     assertThat(resumo.emRevisaoManual()).isEqualTo(1);
-    verify(sms, never()).enviar(anyString(), any());
+    verify(sms, never()).enviar(anyString(), any(), any());
     verify(revisoes)
         .registrar(
             new ItemDeRevisaoManual(EVENTO, id(1), MotivoRevisaoManual.CANAIS_ESGOTADOS, AGORA));
@@ -477,8 +481,8 @@ class NotificarPacientesAfetadosTest {
     ResumoDoLote resumo = executar();
 
     assertThat(resumo.confirmados()).isEqualTo(1);
-    verify(sms, never()).enviar(anyString(), any());
-    verify(email).enviar(emailDe(1), mensagemEsperada(1));
+    verify(sms, never()).enviar(anyString(), any(), any());
+    verify(email).enviar(eq(emailDe(1)), eq(mensagemEsperada(1)), any());
   }
 
   @Test
@@ -513,7 +517,7 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveContinuarOLoteQuandoUmPacienteFalhar() {
     dadoCandidatos(candidato(1), candidato(2), candidato(3));
-    when(sms.enviar(eq(telefone(2)), any())).thenThrow(new IllegalStateException(SEGREDO));
+    when(sms.enviar(eq(telefone(2)), any(), any())).thenThrow(new IllegalStateException(SEGREDO));
 
     ResumoDoLote resumo = executar();
 
@@ -527,7 +531,7 @@ class NotificarPacientesAfetadosTest {
   @Test
   void naoDeveColocarAMensagemDaExcecaoNoAlerta() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenThrow(new IllegalStateException(SEGREDO));
+    when(sms.enviar(anyString(), any(), any())).thenThrow(new IllegalStateException(SEGREDO));
 
     executar();
 
@@ -539,7 +543,7 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveContarAFalhaMesmoQuandoOAlertaFalhar() {
     dadoCandidatos(candidato(1), candidato(2));
-    when(sms.enviar(eq(telefone(1)), any())).thenThrow(new IllegalStateException(SEGREDO));
+    when(sms.enviar(eq(telefone(1)), any(), any())).thenThrow(new IllegalStateException(SEGREDO));
     doThrow(new IllegalStateException(SEGREDO))
         .when(alertas)
         .falhaInesperada(any(), any(), anyString());
@@ -575,8 +579,8 @@ class NotificarPacientesAfetadosTest {
 
     assertThat(resumo).isEqualTo(new ResumoDoLote(3, 1, 2, 0, 0, 0, 0));
     verify(consulta, times(3)).statusAtual(ID_TOMOGRAFO);
-    verify(sms, times(1)).enviar(anyString(), any());
-    verify(email, never()).enviar(anyString(), any());
+    verify(sms, times(1)).enviar(anyString(), any(), any());
+    verify(email, never()).enviar(anyString(), any(), any());
     verify(revisoes, never()).registrar(any());
     List<AvisoPaciente> desfechos = desfechosGravados(3);
     assertThat(desfechos.get(0).status()).isEqualTo(StatusAviso.CONFIRMADO);
@@ -594,7 +598,7 @@ class NotificarPacientesAfetadosTest {
     ResumoDoLote resumo = executar();
 
     assertThat(resumo.confirmados()).isEqualTo(1);
-    verify(sms).enviar(eq(telefone(1)), any());
+    verify(sms).enviar(eq(telefone(1)), any(), any());
   }
 
   // ---------- CA17 ----------
@@ -611,7 +615,7 @@ class NotificarPacientesAfetadosTest {
 
     assertThat(primeiraEntrega.pulados()).isEqualTo(1);
     assertThat(segundaQueda).isEqualTo(new ResumoDoLote(1, 1, 0, 0, 0, 0, 0));
-    verify(sms, times(1)).enviar(eq(telefone(1)), any());
+    verify(sms, times(1)).enviar(eq(telefone(1)), any(), any());
     ArgumentCaptor<AvisoPaciente> reserva = ArgumentCaptor.forClass(AvisoPaciente.class);
     verify(avisos).reservar(reserva.capture());
     assertThat(reserva.getValue().eventoId()).isEqualTo(OUTRO_EVENTO);
@@ -622,13 +626,13 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveManterPendenteEAlertarQuandoOCanalDevolverIndeterminado() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
 
     ResumoDoLote resumo = executar();
 
     assertThat(resumo).isEqualTo(new ResumoDoLote(1, 0, 0, 0, 1, 0, 0));
     verify(alertas).avisoIndeterminado(EVENTO, id(1));
-    verify(email, never()).enviar(anyString(), any());
+    verify(email, never()).enviar(anyString(), any(), any());
     verify(avisos, never()).registrarDesfecho(any());
     verify(revisoes, never()).registrar(any());
   }
@@ -636,8 +640,8 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveManterPendenteEAlertarQuandoOEmailDevolverIndeterminado() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
-    when(email.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(email.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
 
     ResumoDoLote resumo = executar();
 
@@ -709,8 +713,82 @@ class NotificarPacientesAfetadosTest {
     assertThat(resumo).isEqualTo(new ResumoDoLote(1, 1, 0, 0, 0, 0, 0));
     verify(avisos).reassumir(EVENTO, id(1), reservadoEm, AGORA);
     verify(avisos, never()).reservar(any());
-    verify(sms).enviar(eq(telefone(1)), any());
+    verify(sms).enviar(eq(telefone(1)), any(), any());
     assertThat(desfechosGravados(1).get(0).status()).isEqualTo(StatusAviso.CONFIRMADO);
+  }
+
+  // ---------- chave de idempotência até o provedor (fatia 6b) ----------
+
+  @Test
+  void deveEnviarPorSmsComAChaveDoEventoEDoAgendamento() {
+    dadoCandidatos(candidato(1));
+
+    executar();
+
+    verify(sms)
+        .enviar(
+            eq(telefone(1)), eq(mensagemEsperada(1)), eq(new ChaveDeIdempotencia(EVENTO, id(1))));
+  }
+
+  @Test
+  void deveEnviarPorEmailComAChaveDoEventoEDoAgendamentoQuandoSoTemEmail() {
+    dadoCandidatos(candidato(1));
+    dadoContato(1, null, emailDe(1));
+
+    executar();
+
+    verify(email)
+        .enviar(
+            eq(emailDe(1)), eq(mensagemEsperada(1)), eq(new ChaveDeIdempotencia(EVENTO, id(1))));
+    verify(sms, never()).enviar(anyString(), any(), any());
+  }
+
+  @Test
+  void deveUsarAMesmaChaveNoEmailQuandoOSmsEsgotarNoFallback() {
+    dadoCandidatos(candidato(1));
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    ArgumentCaptor<ChaveDeIdempotencia> chaveSms =
+        ArgumentCaptor.forClass(ChaveDeIdempotencia.class);
+    ArgumentCaptor<ChaveDeIdempotencia> chaveEmail =
+        ArgumentCaptor.forClass(ChaveDeIdempotencia.class);
+
+    executar();
+
+    verify(sms).enviar(anyString(), any(), chaveSms.capture());
+    verify(email).enviar(anyString(), any(), chaveEmail.capture());
+    assertThat(chaveSms.getValue()).isEqualTo(new ChaveDeIdempotencia(EVENTO, id(1)));
+    assertThat(chaveEmail.getValue()).isEqualTo(chaveSms.getValue());
+  }
+
+  @Test
+  void deveUsarAMesmaChaveNaReassuncaoDaReservaQueNaPrimeiraTentativa() {
+    dadoCandidatos(candidato(1));
+    executar();
+    when(avisos.buscarPorEvento(EVENTO))
+        .thenReturn(
+            Map.of(
+                id(1), AvisoPaciente.reservar(EVENTO, id(1), AGORA.minus(Duration.ofMinutes(10)))));
+    executar();
+
+    ArgumentCaptor<ChaveDeIdempotencia> chaves = ArgumentCaptor.forClass(ChaveDeIdempotencia.class);
+    verify(sms, times(2)).enviar(eq(telefone(1)), any(), chaves.capture());
+    verify(avisos).reassumir(any(), any(), any(), any());
+    assertThat(chaves.getAllValues())
+        .containsExactly(
+            new ChaveDeIdempotencia(EVENTO, id(1)), new ChaveDeIdempotencia(EVENTO, id(1)));
+  }
+
+  @Test
+  void deveUsarChavesDiferentesParaAgendamentosDiferentes() {
+    dadoCandidatos(candidato(1), candidato(2));
+
+    executar();
+
+    ArgumentCaptor<ChaveDeIdempotencia> chaves = ArgumentCaptor.forClass(ChaveDeIdempotencia.class);
+    verify(sms, times(2)).enviar(anyString(), any(), chaves.capture());
+    assertThat(chaves.getAllValues())
+        .containsExactlyInAnyOrder(
+            new ChaveDeIdempotencia(EVENTO, id(1)), new ChaveDeIdempotencia(EVENTO, id(2)));
   }
 
   @Test
@@ -748,7 +826,7 @@ class NotificarPacientesAfetadosTest {
   void deveEnviarNaOrdemDaSelecaoQuandoAConcorrenciaForUm() {
     dadoCandidatos(candidato(3), candidato(1), candidato(5), candidato(2), candidato(4));
     List<String> ordem = Collections.synchronizedList(new ArrayList<>());
-    when(sms.enviar(anyString(), any()))
+    when(sms.enviar(anyString(), any(), any()))
         .thenAnswer(
             invocacao -> {
               ordem.add(invocacao.getArgument(0));
@@ -773,7 +851,7 @@ class NotificarPacientesAfetadosTest {
     CountDownLatch chegaramAoLimite = new CountDownLatch(maximo);
     CountDownLatch passouDoLimite = new CountDownLatch(1);
     CountDownLatch liberar = new CountDownLatch(1);
-    when(sms.enviar(anyString(), any()))
+    when(sms.enviar(anyString(), any(), any()))
         .thenAnswer(
             invocacao -> {
               int agora = simultaneos.incrementAndGet();
@@ -847,7 +925,7 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveLancarSemCausaNemMensagemDoErroQuandoUmErrorEscapar() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenThrow(new AssertionError("tel-123 segredo"));
+    when(sms.enviar(anyString(), any(), any())).thenThrow(new AssertionError("tel-123 segredo"));
     NotificarPacientesAfetados casoDeUso = casoDeUso(1);
 
     Throwable erro = catchThrowable(() -> casoDeUso.executar(evento));
@@ -865,7 +943,7 @@ class NotificarPacientesAfetadosTest {
   void deveRelancarErroDaMaquinaVirtualComoEsta() {
     dadoCandidatos(candidato(1));
     StackOverflowError fatal = new StackOverflowError();
-    when(sms.enviar(anyString(), any())).thenThrow(fatal);
+    when(sms.enviar(anyString(), any(), any())).thenThrow(fatal);
     NotificarPacientesAfetados casoDeUso = casoDeUso(1);
 
     Throwable erro = catchThrowable(() -> casoDeUso.executar(evento));
@@ -883,13 +961,13 @@ class NotificarPacientesAfetadosTest {
     assertThat(resumo).isEqualTo(new ResumoDoLote(1, 0, 0, 0, 0, 0, 1));
     verify(alertas).falhaInesperada(EVENTO, id(1), "EnvioConfirmadoSemDesfecho");
     verify(alertas, times(1)).falhaInesperada(any(), any(), anyString());
-    verify(sms, times(1)).enviar(anyString(), any());
+    verify(sms, times(1)).enviar(anyString(), any(), any());
   }
 
   @Test
   void deveManterIndeterminadoQuandoOAlertaDeIndeterminadoLancar() {
     dadoCandidatos(candidato(1));
-    when(sms.enviar(anyString(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
+    when(sms.enviar(anyString(), any(), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
     doThrow(new IllegalStateException(SEGREDO)).when(alertas).avisoIndeterminado(any(), any());
 
     ResumoDoLote resumo = executar();
@@ -931,7 +1009,7 @@ class NotificarPacientesAfetadosTest {
     dadoCandidatos(candidato(1));
     CountDownLatch envioIniciado = new CountDownLatch(1);
     CountDownLatch liberar = new CountDownLatch(1);
-    when(sms.enviar(anyString(), any()))
+    when(sms.enviar(anyString(), any(), any()))
         .thenAnswer(
             invocacao -> {
               envioIniciado.countDown();
@@ -978,9 +1056,10 @@ class NotificarPacientesAfetadosTest {
   void naoDeveRegistrarDadoDePacienteNosLogs() {
     capturarLogs();
     dadoCandidatos(candidato(1), candidato(2), candidato(3));
-    when(sms.enviar(eq(telefone(1)), any()))
+    when(sms.enviar(eq(telefone(1)), any(), any()))
         .thenThrow(new IllegalStateException("tel-123 segredo"));
-    when(sms.enviar(eq(telefone(2)), any())).thenReturn(new ResultadoDoEnvio.Indeterminado());
+    when(sms.enviar(eq(telefone(2)), any(), any()))
+        .thenReturn(new ResultadoDoEnvio.Indeterminado());
     when(avisos.registrarDesfecho(any())).thenReturn(false);
 
     executar();
@@ -998,8 +1077,8 @@ class NotificarPacientesAfetadosTest {
   @Test
   void deveContinuarOLoteQuandoOSegundoPacienteEsgotarSmsEEmail() {
     dadoCandidatos(candidato(1), candidato(2), candidato(3));
-    when(sms.enviar(eq(telefone(2)), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
-    when(email.enviar(eq(emailDe(2)), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(sms.enviar(eq(telefone(2)), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
+    when(email.enviar(eq(emailDe(2)), any(), any())).thenReturn(new ResultadoDoEnvio.Esgotado());
 
     ResumoDoLote resumo = executar();
 
@@ -1007,7 +1086,7 @@ class NotificarPacientesAfetadosTest {
     verify(revisoes)
         .registrar(
             new ItemDeRevisaoManual(EVENTO, id(2), MotivoRevisaoManual.CANAIS_ESGOTADOS, AGORA));
-    verify(sms).enviar(eq(telefone(3)), any());
+    verify(sms).enviar(eq(telefone(3)), any(), any());
   }
 
   @Test
@@ -1018,8 +1097,8 @@ class NotificarPacientesAfetadosTest {
 
     InOrder ordem = inOrder(consulta, sms);
     ordem.verify(consulta).statusAtual(ID_TOMOGRAFO);
-    ordem.verify(sms).enviar(eq(telefone(1)), any());
+    ordem.verify(sms).enviar(eq(telefone(1)), any(), any());
     ordem.verify(consulta).statusAtual(ID_TOMOGRAFO);
-    ordem.verify(sms).enviar(eq(telefone(2)), any());
+    ordem.verify(sms).enviar(eq(telefone(2)), any(), any());
   }
 }

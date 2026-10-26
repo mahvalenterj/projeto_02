@@ -1,5 +1,10 @@
 package br.gov.saude.upa.infrastructure.canais;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
@@ -7,6 +12,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 
 class NotificadorEmailHttpTest extends NotificadorHttpContratoTest {
+
+  @Override
+  protected String nomeDoCanal() {
+    return "email";
+  }
 
   @Override
   protected String caminho() {
@@ -48,5 +58,26 @@ class NotificadorEmailHttpTest extends NotificadorHttpContratoTest {
   void deveSerComponentEnaoRepositoryParaNaoConverterExcecoesDePreCondicao() {
     assertThat(NotificadorEmailHttp.class.isAnnotationPresent(Component.class)).isTrue();
     assertThat(NotificadorEmailHttp.class.isAnnotationPresent(Repository.class)).isFalse();
+  }
+
+  @Test
+  void deveEnviarOCabecalhoLiteralDeIdempotenciaDoCanalEmail() {
+    provedor.stubFor(
+        post(urlPathEqualTo(caminho()))
+            .willReturn(
+                aResponse()
+                    .withStatus(202)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"id\":\"msg-1\",\"situacao\":\"" + situacaoDeSucesso() + "\"}")));
+
+    novoEnviador(canal().build()).enviar(destino(), MENSAGEM, CHAVE);
+
+    provedor.verify(
+        1,
+        postRequestedFor(urlPathEqualTo("/v1/emails"))
+            .withHeader(
+                "Idempotency-Key",
+                equalTo(
+                    "11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:email")));
   }
 }

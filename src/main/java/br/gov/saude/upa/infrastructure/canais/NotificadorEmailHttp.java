@@ -1,5 +1,6 @@
 package br.gov.saude.upa.infrastructure.canais;
 
+import br.gov.saude.upa.application.ChaveDeIdempotencia;
 import br.gov.saude.upa.application.NotificadorEmail;
 import br.gov.saude.upa.application.ResultadoDoEnvio;
 import br.gov.saude.upa.domain.MensagemDeAviso;
@@ -23,9 +24,10 @@ class NotificadorEmailHttp implements NotificadorEmail {
   }
 
   @Override
-  public ResultadoDoEnvio enviar(String destino, MensagemDeAviso mensagem) {
-    ClienteDeCanal.validar(destino, mensagem);
-    return cliente.enviar(new PedidoDeEmail(destino, ASSUNTO, mensagem.texto()));
+  public ResultadoDoEnvio enviar(
+      String destino, MensagemDeAviso mensagem, ChaveDeIdempotencia chave) {
+    ClienteDeCanal.validar(destino, mensagem, chave);
+    return cliente.enviar(new PedidoDeEmail(destino, ASSUNTO, mensagem.texto()), chave);
   }
 
   /** O {@code toString} não mostra o e-mail nem o texto. */

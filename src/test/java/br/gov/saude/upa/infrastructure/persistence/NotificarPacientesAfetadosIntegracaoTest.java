@@ -7,6 +7,7 @@ import br.gov.saude.upa.application.AgendamentoRepository;
 import br.gov.saude.upa.application.AgendamentosDoDia;
 import br.gov.saude.upa.application.AlertasOperacionais;
 import br.gov.saude.upa.application.AvisoPacienteRepository;
+import br.gov.saude.upa.application.ChaveDeIdempotencia;
 import br.gov.saude.upa.application.ConsultaDeEquipamento;
 import br.gov.saude.upa.application.ContatoDePacienteRepository;
 import br.gov.saude.upa.application.NotificadorEmail;
@@ -171,7 +172,8 @@ class NotificarPacientesAfetadosIntegracaoTest extends PostgresIntegrationTest {
     final Set<String> esgotados = ConcurrentHashMap.newKeySet();
 
     @Override
-    public ResultadoDoEnvio enviar(String destino, MensagemDeAviso mensagem) {
+    public ResultadoDoEnvio enviar(
+        String destino, MensagemDeAviso mensagem, ChaveDeIdempotencia chave) {
       enviosPorDestino.computeIfAbsent(destino, d -> new AtomicInteger()).incrementAndGet();
       return esgotados.contains(destino)
           ? new ResultadoDoEnvio.Esgotado()

@@ -8,5 +8,5 @@ import br.gov.saude.upa.domain.MensagemDeAviso;
  */
 public interface NotificadorSms {
 
-  ResultadoDoEnvio enviar(String destino, MensagemDeAviso mensagem);
+  ResultadoDoEnvio enviar(String destino, MensagemDeAviso mensagem, ChaveDeIdempotencia chave);
 }

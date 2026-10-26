@@ -1,5 +1,6 @@
 package br.gov.saude.upa.infrastructure.canais;
 
+import br.gov.saude.upa.application.ChaveDeIdempotencia;
 import br.gov.saude.upa.application.ResultadoDoEnvio;
 import br.gov.saude.upa.domain.MensagemDeAviso;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -108,18 +109,21 @@ final class ClienteDeCanal {
   }
 
   /** Falha rápido, sem citar o valor, quando o destino ou a mensagem não servem. */
-  static void validar(String destino, MensagemDeAviso mensagem) {
+  static void validar(String destino, MensagemDeAviso mensagem, ChaveDeIdempotencia chave) {
     Objects.requireNonNull(destino, "destino");
     Objects.requireNonNull(mensagem, "mensagem");
+    Objects.requireNonNull(chave, "chave");
     if (destino.isBlank()) {
       throw new IllegalArgumentException("destino não pode ser vazio");
     }
   }
 
   /** Envia o pedido; só devolve {@code Confirmado} com o aceite explícito do provedor. */
-  ResultadoDoEnvio enviar(Object pedido) {
+  ResultadoDoEnvio enviar(Object pedido, ChaveDeIdempotencia chave) {
+    // Calculada uma vez, fora do Supplier: toda repetição do Retry leva o mesmo valor.
+    String chaveDoProvedor = chave.eventoId() + ":" + chave.agendamentoId() + ":" + nome;
     try {
-      return Decorators.ofSupplier(() -> tentar(pedido))
+      return Decorators.ofSupplier(() -> tentar(pedido, chaveDoProvedor))
           .withBulkhead(bulkhead)
           .withRateLimiter(limitador)
           .withCircuitBreaker(breaker)
@@ -168,10 +172,11 @@ final class ClienteDeCanal {
     return backoff.apply(numeroDaFalha);
   }
 
-  private ResultadoDoEnvio tentar(Object pedido) {
+  private ResultadoDoEnvio tentar(Object pedido, String chaveDoProvedor) {
     try {
       return http.post()
           .uri(caminho)
+          .header("Idempotency-Key", chaveDoProvedor)
           .contentType(MediaType.APPLICATION_JSON)
           .body(pedido)
           .exchange((requisicao, resposta) -> classificar(resposta));

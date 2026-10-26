@@ -83,7 +83,8 @@ class ClienteDeCanalTest {
 
     try {
       for (int i = 0; i < 6; i++) {
-        assertThat(cliente.enviar(Map.of("destinatario", segredo)))
+        assertThat(
+                cliente.enviar(Map.of("destinatario", segredo), NotificadorHttpContratoTest.CHAVE))
             .isEqualTo(new ResultadoDoEnvio.Esgotado());
       }
     } finally {

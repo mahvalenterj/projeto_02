@@ -106,6 +106,38 @@ final class ClienteDeCanal {
     this.breaker = criarBreaker(nome, canal.breaker());
     this.limitador = criarLimitador(nome, canal.limitador());
     this.bulkhead = criarBulkhead(nome, canal.bulkhead());
+    observar();
+  }
+
+  /**
+   * Torna visível o que o breaker conta: cada tentativa que falha e será repetida e cada mudança de
+   * estado do breaker. Só o canal, o número da tentativa e o NOME DA CLASSE da causa (ou o status
+   * HTTP): nunca mensagem, destino, texto ou token.
+   */
+  private void observar() {
+    retry
+        .getEventPublisher()
+        .onRetry(
+            evento ->
+                log.warn(
+                    "Canal {} tentativa {} falhou e sera repetida: causa={}",
+                    nome,
+                    evento.getNumberOfRetryAttempts(),
+                    causaDe(evento.getLastThrowable())));
+    breaker
+        .getEventPublisher()
+        .onStateTransition(
+            evento ->
+                log.warn(
+                    "Canal {} circuit breaker mudou de estado: {} -> {}",
+                    nome,
+                    evento.getStateTransition().getFromState(),
+                    evento.getStateTransition().getToState()));
+  }
+
+  /** O retry só repete {@link FalhaDoCanal} transitória ({@link #valeRepetir}). */
+  private static String causaDe(Throwable erro) {
+    return ((FalhaDoCanal) erro).causa();
   }
 
   /** Falha rápido, sem citar o valor, quando o destino ou a mensagem não servem. */
@@ -183,9 +215,11 @@ final class ClienteDeCanal {
     } catch (ResourceAccessException e) {
       // Timeout, conexão recusada ou derrubada. Só o tipo da causa vai adiante (a mensagem
       // do JDK pode citar o endereço).
-      String causa =
-          e.getCause() == null ? "desconhecida" : e.getCause().getClass().getSimpleName();
-      throw FalhaDoCanal.transitoria("falha de comunicação (" + causa + ")", null);
+      Throwable origem = e.getCause() == null ? e : e.getCause();
+      throw FalhaDoCanal.transitoria(
+          "falha de comunicação (" + origem.getClass().getSimpleName() + ")",
+          null,
+          origem.getClass().getName());
     }
   }
 
@@ -200,7 +234,8 @@ final class ClienteDeCanal {
       throw excessoDeRequisicoes(resposta.getHeaders());
     }
     if (codigo.is5xxServerError()) {
-      throw FalhaDoCanal.transitoria("erro do provedor (status " + status + ")", null);
+      throw FalhaDoCanal.transitoria(
+          "erro do provedor (status " + status + ")", null, "HTTP " + status);
     }
     if (status == 401 || status == 403) {
       throw FalhaDoCanal.semRetry("credencial recusada (status " + status + ")");
@@ -275,12 +310,13 @@ final class ClienteDeCanal {
   private FalhaDoCanal excessoDeRequisicoes(HttpHeaders cabecalhos) {
     Optional<Duration> espera = lerRetryAfter(cabecalhos.getFirst(HttpHeaders.RETRY_AFTER));
     if (espera.isEmpty()) {
-      return FalhaDoCanal.transitoria("limite de taxa do provedor (status 429)", null);
+      return FalhaDoCanal.transitoria("limite de taxa do provedor (status 429)", null, "HTTP 429");
     }
     if (espera.get().compareTo(retryAfterMaximo) > 0) {
       return FalhaDoCanal.semRetry("limite de taxa do provedor com espera acima do teto (429)");
     }
-    return FalhaDoCanal.transitoria("limite de taxa do provedor (status 429)", espera.get());
+    return FalhaDoCanal.transitoria(
+        "limite de taxa do provedor (status 429)", espera.get(), "HTTP 429");
   }
 
   /**

@@ -149,24 +149,34 @@ class ContatoDePacienteRepositoryTest extends PostgresIntegrationTest {
 
     // Contorna os CHECKs só dentro de uma transação desfeita no fim (DDL do Postgres é
     // transacional): defesa em profundidade do adapter contra dado ruim que já esteja no banco.
-    Map<UUID, ContatoDoPaciente> contatos =
-        transacao.execute(
-            status -> {
-              status.setRollbackOnly();
-              jdbc.execute("ALTER TABLE paciente DROP CONSTRAINT ck_paciente_telefone");
-              jdbc.execute("ALTER TABLE paciente DROP CONSTRAINT ck_paciente_email");
-              jdbc.update(
-                  "INSERT INTO paciente (id, nome, telefone, email, data_nascimento)"
-                      + " VALUES (?, 'Sintetico', E'\\t', ?, DATE '1975-02-03')",
-                  comLinhaRuim,
-                  EMAIL);
-              jdbc.update(
-                  "INSERT INTO paciente (id, nome, telefone, email, data_nascimento)"
-                      + " VALUES (?, 'Sintetico', ?, ' ', DATE '1975-02-03')",
-                  emailEmBranco,
-                  TELEFONE);
-              return repositorio.buscarPorIds(Set.of(comLinhaRuim, emailEmBranco, normal));
-            });
+    // Se a transação falhar antes do rollback, o finally recria cada CHECK por conta própria.
+    Map<UUID, ContatoDoPaciente> contatos;
+    try {
+      contatos =
+          transacao.execute(
+              status -> {
+                status.setRollbackOnly();
+                jdbc.execute("ALTER TABLE paciente DROP CONSTRAINT ck_paciente_telefone");
+                jdbc.execute("ALTER TABLE paciente DROP CONSTRAINT ck_paciente_email");
+                jdbc.update(
+                    "INSERT INTO paciente (id, nome, telefone, email, data_nascimento)"
+                        + " VALUES (?, 'Sintetico', E'\\t', ?, DATE '1975-02-03')",
+                    comLinhaRuim,
+                    EMAIL);
+                jdbc.update(
+                    "INSERT INTO paciente (id, nome, telefone, email, data_nascimento)"
+                        + " VALUES (?, 'Sintetico', ?, ' ', DATE '1975-02-03')",
+                    emailEmBranco,
+                    TELEFONE);
+                return repositorio.buscarPorIds(Set.of(comLinhaRuim, emailEmBranco, normal));
+              });
+    } finally {
+      try {
+        recriarCheckDeBranco("ck_paciente_telefone", "telefone");
+      } finally {
+        recriarCheckDeBranco("ck_paciente_email", "email");
+      }
+    }
 
     assertThat(contatos).containsOnlyKeys(comLinhaRuim, emailEmBranco, normal);
     assertThat(contatos.get(comLinhaRuim).telefone()).isNull();
@@ -175,6 +185,19 @@ class ContatoDePacienteRepositoryTest extends PostgresIntegrationTest {
     assertThat(contatos.get(emailEmBranco).email()).isNull();
     assertThat(contatos.get(normal).telefone()).isEqualTo(TELEFONE);
     assertThat(contatos.get(normal).email()).isEqualTo(EMAIL);
+  }
+
+  /** Idempotente: existe ou não, o CHECK sai daqui igual ao da migration V2. */
+  private void recriarCheckDeBranco(String nome, String coluna) {
+    jdbc.execute("ALTER TABLE paciente DROP CONSTRAINT IF EXISTS " + nome);
+    jdbc.execute(
+        "ALTER TABLE paciente ADD CONSTRAINT "
+            + nome
+            + " CHECK ("
+            + coluna
+            + " IS NULL OR "
+            + coluna
+            + " !~ '^\\s*$')");
   }
 
   @Test

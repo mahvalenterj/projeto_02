@@ -61,6 +61,63 @@ class ClienteDeCanalTest {
     assertThat(cliente.esperaDoRetry(1, new IllegalStateException())).isBetween(500L, 1500L);
   }
 
+  /**
+   * Observabilidade do breaker (fatia 9): cada tentativa que falha e será repetida e cada mudança
+   * de estado do breaker vão para o log em WARN, só com o canal, o número da tentativa e o NOME DA
+   * CLASSE da causa. A isca com telefone e e-mail na exceção não pode aparecer.
+   */
+  @Test
+  void deveRegistrarATentativaRepetidaEAAberturaDoBreakerSoComCanalTentativaEClasseDaCausa() {
+    String isca = "destino +5521999990000 isca.paciente@exemplo.invalid";
+    RestClient semConexao =
+        RestClient.builder()
+            .baseUrl("http://localhost:1")
+            .requestFactory(
+                (uri, metodo) -> {
+                  throw new java.net.ConnectException(isca);
+                })
+            .build();
+    CanaisProperties.Canal canal =
+        CanalDeTeste.para("http://localhost:1").tentativas(2).breaker(2).build();
+    ClienteDeCanal cliente = new ClienteDeCanal("sms", canal, "/v1/x", "OK", semConexao);
+    br.gov.saude.upa.DetectorDeDadoSensivel detector =
+        new br.gov.saude.upa.DetectorDeDadoSensivel()
+            .paciente("Fulana Isca", "+5521999990000", "isca.paciente@exemplo.invalid", null);
+    br.gov.saude.upa.DetectorDeDadoSensivel.Captura captura =
+        new br.gov.saude.upa.DetectorDeDadoSensivel.Captura();
+    captura.ligarNaRaiz();
+
+    ResultadoDoEnvio resultado;
+    try {
+      resultado = cliente.enviar(Map.of("destinatario", isca), NotificadorHttpContratoTest.CHAVE);
+    } finally {
+      captura.desligar();
+    }
+
+    assertThat(resultado).isEqualTo(new ResultadoDoEnvio.Esgotado());
+    java.util.List<ILoggingEvent> doCanal =
+        captura.eventos().stream()
+            .filter(e -> e.getLoggerName().equals(ClienteDeCanal.class.getName()))
+            .toList();
+    assertThat(doCanal)
+        .anySatisfy(
+            e -> {
+              assertThat(e.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+              assertThat(e.getFormattedMessage())
+                  .isEqualTo(
+                      "Canal sms tentativa 1 falhou e sera repetida: causa=java.net.ConnectException");
+            });
+    assertThat(doCanal)
+        .anySatisfy(
+            e -> {
+              assertThat(e.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+              assertThat(e.getFormattedMessage())
+                  .isEqualTo("Canal sms circuit breaker mudou de estado: CLOSED -> OPEN");
+            });
+    assertThat(doCanal).allSatisfy(e -> assertThat(e.getThrowableProxy()).isNull());
+    detector.exigirNenhumVazamento(captura.eventos());
+  }
+
   @Test
   void deveDevolverEsgotadoRegistrarSoOTipoEContarNoBreakerQuandoOcorrerErroInesperado() {
     String segredo = "+5521999990000 texto-do-paciente";

@@ -5,84 +5,38 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import br.gov.saude.upa.PostgresIntegrationTest;
 import br.gov.saude.upa.application.DespachanteDoOutbox;
 import br.gov.saude.upa.application.MarcarEquipamentoDisponivel;
 import br.gov.saude.upa.application.MarcarEquipamentoIndisponivel;
 import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import java.sql.Timestamp;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Fluxo inteiro com Postgres real e WireMock nos dois canais: marcar indisponível, outbox,
- * despachante, avisos. Contexto Spring PRÓPRIO (as portas do WireMock são dinâmicas). O relógio é
- * fixo e a concorrência do lote é 1, para a ordem dos envios ser a da seleção. Dados sintéticos.
+ * despachante, avisos. Contexto Spring compartilhado com o teste de privacidade de log ({@link
+ * CanaisSimuladosIntegracaoTest}). O relógio é fixo e a concorrência do lote é 1, para a ordem dos
+ * envios ser a da seleção. Dados sintéticos.
  */
-class AvisoDePontaAPontaIntegracaoTest extends PostgresIntegrationTest {
+class AvisoDePontaAPontaIntegracaoTest extends CanaisSimuladosIntegracaoTest {
 
-  private static final Instant AGORA = Instant.parse("2026-10-11T15:00:00Z");
   private static final Instant PRIMEIRO_EXAME = Instant.parse("2026-10-11T18:00:00Z");
   private static final Instant CRIADO_EM = Instant.parse("2026-10-01T09:00:00Z");
   private static final Pattern DESTINATARIO = Pattern.compile("\"destinatario\":\"([^\"]+)\"");
   private static final String ACEITE_SMS = "{\"id\":\"msg-1\",\"situacao\":\"ACEITA\"}";
   private static final String ACEITE_EMAIL = "{\"id\":\"mail-1\",\"situacao\":\"ACEITO\"}";
-
-  private static final WireMockServer SMS =
-      new WireMockServer(WireMockConfiguration.options().dynamicPort());
-  private static final WireMockServer EMAIL =
-      new WireMockServer(WireMockConfiguration.options().dynamicPort());
-
-  static {
-    SMS.start();
-    EMAIL.start();
-  }
-
-  @DynamicPropertySource
-  static void canais(DynamicPropertyRegistry registro) {
-    registro.add("upa.canais.sms.base-url", SMS::baseUrl);
-    registro.add("upa.canais.email.base-url", EMAIL::baseUrl);
-    registro.add("upa.canais.sms.retry.tentativas", () -> "2");
-    registro.add("upa.canais.sms.retry.espera-inicial", () -> "PT0.01S");
-    registro.add("upa.canais.email.retry.espera-inicial", () -> "PT0.01S");
-    registro.add("upa.aviso.concorrencia-maxima", () -> "1");
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class RelogioFixo {
-
-    @Bean
-    @Primary
-    Clock relogioDeTeste() {
-      return Clock.fixed(AGORA, ZoneOffset.UTC);
-    }
-  }
-
-  @AfterAll
-  static void desligarProvedores() {
-    SMS.stop();
-    EMAIL.stop();
-  }
 
   @Autowired private MarcarEquipamentoIndisponivel marcarIndisponivel;
   @Autowired private MarcarEquipamentoDisponivel marcarDisponivel;

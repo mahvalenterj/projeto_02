@@ -28,6 +28,10 @@
         <spotless.version>2.44.5</spotless.version>
         <resilience4j.version>2.4.0</resilience4j.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <!-- O teste de carga (@Tag("carga"), CA14) não roda no build comum: roda só com
+             ./mvnw test -Pcarga. Nada é desativado nem excluído do JaCoCo/Pitest. -->
+        <testes.grupos></testes.grupos>
+        <testes.gruposExcluidos>carga</testes.gruposExcluidos>
     </properties>
 
     <!-- O Boot não gerencia o Resilience4j: o BOM fixa a versão dos módulos. -->
@@ -130,6 +134,15 @@
             </plugin>
 
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <groups>${testes.grupos}</groups>
+                    <excludedGroups>${testes.gruposExcluidos}</excludedGroups>
+                </configuration>
+            </plugin>
+
+            <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
                 <version>${spotless.version}</version>
@@ -216,4 +229,16 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Carga do lote (spec 001, CA14 e §13): ./mvnw test -Pcarga. Usa a fase test, e não
+             verify: rodando só a carga, a checagem do JaCoCo reprovaria sem exclusão nova. -->
+        <profile>
+            <id>carga</id>
+            <properties>
+                <testes.grupos>carga</testes.grupos>
+                <testes.gruposExcluidos></testes.gruposExcluidos>
+            </properties>
+        </profile>
+    </profiles>
 </project>

@@ -360,6 +360,37 @@ abstract class NotificadorHttpContratoTest {
     verificarRequisicoes(3);
   }
 
+  private List<String> linhasDeRetry() {
+    return logs.list.stream()
+        .map(ILoggingEvent::getFormattedMessage)
+        .filter(m -> m.contains("falhou e sera repetida"))
+        .toList();
+  }
+
+  @Test
+  void deveRegistrarCausaHttp503NaLinhaDeRetry() {
+    responder(503, "{}");
+
+    enviarComPadrao();
+
+    assertThat(linhasDeRetry())
+        .containsExactly(
+            "Canal " + nomeDoCanal() + " tentativa 1 falhou e sera repetida: causa=HTTP 503",
+            "Canal " + nomeDoCanal() + " tentativa 2 falhou e sera repetida: causa=HTTP 503");
+  }
+
+  @Test
+  void deveRegistrarCausaHttp429NaLinhaDeRetry() {
+    responder(429, "{}");
+
+    enviarComPadrao();
+
+    assertThat(linhasDeRetry())
+        .first()
+        .isEqualTo(
+            "Canal " + nomeDoCanal() + " tentativa 1 falhou e sera repetida: causa=HTTP 429");
+  }
+
   @Test
   void deveEsperarOBackoffExponencialEntreAsTentativas() {
     responder(500, "{}");

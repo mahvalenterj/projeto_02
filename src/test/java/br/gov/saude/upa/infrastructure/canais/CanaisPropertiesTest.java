@@ -38,6 +38,14 @@ class CanaisPropertiesTest {
               assertThat(canais.sms().breaker().janela()).isEqualTo(50);
               assertThat(canais.sms().breaker().minimoDeChamadas()).isEqualTo(20);
               assertThat(canais.sms().limitador().limite()).isEqualTo(50);
+              assertThat(canais.sms().limitador().periodo()).isEqualTo(Duration.ofSeconds(1));
+              assertThat(canais.email().limitador().limite()).isEqualTo(50);
+              assertThat(canais.email().limitador().periodo()).isEqualTo(Duration.ofSeconds(1));
+              assertThat(canais.sms().limitador().espera()).isEqualTo(Duration.ofSeconds(5));
+              assertThat(canais.email().limitador().espera()).isEqualTo(Duration.ofSeconds(5));
+              assertThat(canais.email().bulkhead().maximo()).isEqualTo(50);
+              assertThat(canais.email().bulkhead().espera()).isEqualTo(Duration.ofSeconds(5));
+              assertThat(canais.sms().bulkhead().espera()).isEqualTo(Duration.ofSeconds(5));
               assertThat(canais.sms().bulkhead().maximo()).isEqualTo(50);
               assertThat(canais.email().timeoutConexao()).isEqualTo(Duration.ofSeconds(3));
               assertThat(canais.email().timeoutLeitura()).isEqualTo(Duration.ofSeconds(10));

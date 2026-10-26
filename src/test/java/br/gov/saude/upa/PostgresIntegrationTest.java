@@ -15,6 +15,8 @@ import org.springframework.test.context.TestPropertySource;
       "upa.canais.sms.base-url=http://localhost:1",
       "upa.canais.sms.token=token-falso-de-teste",
       "upa.canais.email.base-url=http://localhost:1",
-      "upa.canais.email.token=token-falso-de-teste"
+      "upa.canais.email.token=token-falso-de-teste",
+      // O agendador ligado consumiria as linhas do outbox que os testes usam.
+      "upa.outbox.habilitado=false"
     })
 public abstract class PostgresIntegrationTest {}

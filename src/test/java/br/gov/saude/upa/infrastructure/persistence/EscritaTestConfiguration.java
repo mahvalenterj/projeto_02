@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Casos de uso de status montados SÓ para teste (a fiação de produção é a fatia 7c). Importada por
@@ -50,12 +51,14 @@ public class EscritaTestConfiguration {
   }
 
   @Bean
+  @Primary
   MarcarEquipamentoIndisponivel marcarIndisponivelDeTeste(
       UPAPersistencia upas, OutboxQueFalha outbox) {
     return new MarcarEquipamentoIndisponivel(upas, outbox, Clock.fixed(AGORA, ZoneOffset.UTC));
   }
 
   @Bean
+  @Primary
   MarcarEquipamentoDisponivel marcarDisponivelDeTeste(UPAPersistencia upas) {
     return new MarcarEquipamentoDisponivel(upas);
   }

@@ -102,6 +102,7 @@ class NotificarPacientesAfetadosIntegracaoTest extends PostgresIntegrationTest {
     }
 
     @Bean
+    @org.springframework.context.annotation.Primary
     NotificarPacientesAfetados casoDeUsoDeTeste(
         FakeUpas upas,
         FakeAgendamentos agendamentos,

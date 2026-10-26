@@ -57,7 +57,7 @@ class OutboxConfigurationTest {
           assertThat(contexto).hasNotFailed();
           OutboxProperties p = contexto.getBean(OutboxProperties.class);
           assertThat(p.tamanhoDoLote()).isEqualTo(10);
-          assertThat(p.lease()).isEqualTo(Duration.ofMinutes(10));
+          assertThat(p.lease()).isEqualTo(Duration.ofMinutes(5));
           assertThat(p.atrasoDeReentrega()).isEqualTo(Duration.ofSeconds(130));
           assertThat(p.maximoDeTentativas()).isEqualTo(5);
           assertThat(p.habilitado()).isTrue();

@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/v1/mensagens"
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"id\":\"sms-{{randomValue type='UUID'}}\",\"situacao\":\"ACEITA\"}"
+  }
+}

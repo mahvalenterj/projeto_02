@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/v1/emails"
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"id\":\"email-{{randomValue type='UUID'}}\",\"situacao\":\"ACEITO\"}"
+  }
+}

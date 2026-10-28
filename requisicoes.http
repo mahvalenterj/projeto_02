@@ -1,0 +1,57 @@
+### Roteiro manual (REST Client do VS Code), SOMENTE no perfil dev:
+###   docker compose -f docker-compose.dev.yml up -d
+###   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+### Rode na ordem: o cenário e o token alimentam as variáveis das requisições seguintes.
+
+@base = http://localhost:8080
+
+### 1. Cenário sintético: UPA, tomógrafo DISPONIVEL e pacientes com exame hoje
+# @name cenario
+POST {{base}}/dev/cenario
+
+@upaId = {{cenario.response.body.upaId}}
+@equipamentoId = {{cenario.response.body.equipamentoId}}
+
+### 2. Token (JWT RS256, 15 min) para a UPA do cenário
+# @name token
+POST {{base}}/dev/token
+Content-Type: application/json
+
+{"upas": ["{{upaId}}"]}
+
+@jwt = {{token.response.body.token}}
+
+### 3. PATCH INDISPONIVEL: 204; o agendador do outbox envia os avisos em poucos segundos.
+###    Conferir em http://localhost:8089/__admin/requests
+PATCH {{base}}/api/v1/upas/{{upaId}}/equipamentos/{{equipamentoId}}/status
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{"status": "INDISPONIVEL"}
+
+### 4. PATCH DISPONIVEL: 204 (equipamento restabelecido, sem novo aviso)
+PATCH {{base}}/api/v1/upas/{{upaId}}/equipamentos/{{equipamentoId}}/status
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{"status": "DISPONIVEL"}
+
+### 5. PATCH em outra UPA (fora do token): 404 igual ao de recurso inexistente
+PATCH {{base}}/api/v1/upas/00000000-0000-0000-0000-000000000001/equipamentos/{{equipamentoId}}/status
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{"status": "INDISPONIVEL"}
+
+### 6. Transição inválida (EM_MANUTENCAO não é aceito pela API): 422
+PATCH {{base}}/api/v1/upas/{{upaId}}/equipamentos/{{equipamentoId}}/status
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{"status": "EM_MANUTENCAO"}
+
+### 7. Sem token: 401 em ProblemDetail
+PATCH {{base}}/api/v1/upas/{{upaId}}/equipamentos/{{equipamentoId}}/status
+Content-Type: application/json
+
+{"status": "INDISPONIVEL"}

@@ -28,6 +28,8 @@
         <spotless.version>2.44.5</spotless.version>
         <resilience4j.version>2.4.0</resilience4j.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <!-- Linha 2.8 do springdoc: a compatível com Spring Boot 3.5 (a 3.x é para o Boot 4). -->
+        <springdoc.version>2.8.17</springdoc.version>
         <!-- O teste de carga (@Tag("carga"), CA14) não roda no build comum: roda só com
              ./mvnw test -Pcarga. Nada é desativado nem excluído do JaCoCo/Pitest. -->
         <testes.grupos></testes.grupos>
@@ -59,6 +61,20 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <!-- Swagger: só ligado no perfil dev (application-dev.properties). -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -107,6 +123,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

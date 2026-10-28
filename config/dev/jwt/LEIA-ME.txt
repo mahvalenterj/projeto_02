@@ -1,0 +1,21 @@
+SOMENTE DESENVOLVIMENTO
+
+Este par de chaves RSA (privada.pem e publica.pem) é PÚBLICO e serve só para rodar a aplicação
+no perfil dev (POST /dev/token assina com privada.pem; o perfil dev valida com publica.pem).
+
+- Nunca use estas chaves em homologação ou produção. A aplicação se recusa a subir se a chave
+  pública ativa for esta (reconhecida pela impressão digital SHA-256) e o perfil dev não estiver
+  ativo, mesmo que o PEM seja copiado para a variável de ambiente.
+- Fora do perfil dev a aplicação não lê nada desta pasta: a chave pública vem da variável de
+  ambiente UPA_SEGURANCA_JWT_CHAVE_PUBLICA (PEM) e a emissão de tokens fica fora do sistema
+  (ADR 0004).
+- Os testes de segurança da API NÃO usam estas chaves: geram o próprio par na execução. Usam
+  estas chaves só os testes do próprio kit de desenvolvimento (PerfilDevIntegracaoTest,
+  TravaDaChaveDeDesenvolvimentoTest e EmissorDeTokenDeDesenvolvimentoTest), para provar que o
+  perfil dev funciona e que a trava recusa esta chave fora dele.
+
+Para gerar um par novo (opcional): troque a impressão digital em
+TravaDaChaveDeDesenvolvimento.IMPRESSAO_DIGITAL_DA_CHAVE_DE_DEV, senão o perfil dev não sobe.
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out privada.pem
+  openssl pkey -in privada.pem -pubout -out publica.pem
+  openssl pkey -pubin -in publica.pem -outform DER | sha256sum

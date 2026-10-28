@@ -1,0 +1,28 @@
+# SOMENTE DESENVOLVIMENTO: Postgres e provedor de SMS/e-mail simulado (WireMock) para rodar a
+# aplicação com o perfil dev. Senha "upa" e stubs não são de produção.
+#   docker compose -f docker-compose.dev.yml up -d
+#   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+# Portas publicadas só no loopback (127.0.0.1): nada fica exposto na rede.
+# Requisições que chegaram ao provedor simulado: http://localhost:8089/__admin/requests
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: upa
+      POSTGRES_USER: upa
+      POSTGRES_PASSWORD: upa
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upa -d upa"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  wiremock:
+    image: wiremock/wiremock:3.13.2
+    command: ["--port", "8089", "--global-response-templating"]
+    ports:
+      - "127.0.0.1:8089:8089"
+    volumes:
+      - ./config/dev/wiremock/mappings:/home/wiremock/mappings:ro
